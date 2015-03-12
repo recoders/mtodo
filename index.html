@@ -1,0 +1,431 @@
+<!doctype HTML><html><head><meta charset='UTF-8' />
+
+	<!-- 
+	microToDo
+	Ультраминималистичный реактивный список дел (ToDo) 
+	с хранением данных в печеньках браузера.
+
+	Идея и вёрстка — BrokenBrake.biz.
+	Магия JS — Николай Киселев (free-lance.ru/users/nkiselev).
+
+	Идея — первая неделя августа 2009 года.
+	Начало реализации — 7 августа.
+	Первый рабочий прототип — 8 августа.
+	Публичный выход — 9 августа.
+
+	11 июля 2010 года: редизайн и приятное новшество — обработка ссылок (активными становятся)
+
+	20 августа 2010 года: улучшение для работы без использования мыши.
+	-->
+	
+<title>Делай!</title>
+
+<style type='text/css' media='all'>
+body {font: normal normal normal large/1.6em  Verdana, sans-serif}
+header {display:block; position:relative; margin-left: 7em}
+header a, header input {opacity:.3}
+header:hover *, header input:focus {opacity:1}
+header input, #newtodo span {width:80%; max-width:23em; font-size:large}
+
+a:link, header a:visited {color:inherit}
+
+#name {position:absolute; right:100%; padding-right:1em}
+
+ul {padding-left:0}
+ul label  {padding-left:7em}
+
+.ahtung, #newtodo span {background:red; color:white; padding:1em}
+.hidden, #newtodo span {display:none}
+
+#newtodo:hover span {display:block; position:absolute; top:2em; left:0}
+
+#timer {display:inline; padding-left:1em; font-size:x-large}
+#timer span {font-size:large}
+
+li {list-style:none; position:relative}
+a.del {position:absolute; left:3em; text-decoration:none; opacity:.1; padding:0 1em}
+li:hover .del {background:red; color:white; opacity:1}
+#name, #addtodo, .OK {text-decoration: none; opacity:.3}
+
+</style>
+
+<script>
+document.createElement('header');
+document.createElement('section');
+
+var cookieToDo = "mToDo";
+var cookieExToDo = "mExToDo";
+var cookieExToDoEnd = "mExToDoEnd";
+var cookieTimer = "mToDoTime";
+var cookieTimerPause = "mToDoTimePause";
+var todo = new Array();
+var extodo = new Array();
+var extodoend = new Array();
+var curTime = parseInt( new Date().getTime() / 1000, 10 );
+var pauseTime = curTime;
+var isTime = false;
+var isTimePause = false;
+var tMonth = 1000 * 60 * 60 * 24 * 31;
+var tWeek = 1000 * 60 * 60 * 24 * 7;
+var defaultMess = 'Что нужно делать?';
+var value, i, index, time;
+
+function plural(n, f1, f2, f5) {
+ n = Math.abs(n) % 100;
+ i = n % 10;
+ if (n > 10 && n < 20) return f5;
+ if (i > 1 && i < 5) return f2;
+ if (i == 1) return f1;
+ return f5;
+}
+
+function setCookie( name, value, expire ) {
+ time = new Date();
+ time.setTime( time.getTime() + expire );
+ document.cookie = name + "=" + value + "; expires=" + time.toGMTString();
+ return true;
+}
+
+function getCookie( name ) {
+ var cSIndex = document.cookie.indexOf( name );
+ if (cSIndex == -1) return false;
+ cSIndex = document.cookie.indexOf( name + "=" )
+ if (cSIndex == -1) return false;
+ var cEIndex = document.cookie.indexOf( ";", cSIndex + ( name + "=" ).length );
+ if (cEIndex == -1) cEIndex = document.cookie.length;
+ return document.cookie.substring( cSIndex + ( name + "=" ).length, cEIndex );
+}
+
+function delCookie( name ) {
+ if ( getCookie( name )) 
+  document.cookie = name + "=; expires=Thu, 01-Jan-70 00:00:01 GMT";
+}
+
+function prepareCookie( name, value ) {
+ var ret = new Array();
+ for ( i = 0; i < value.length; ++i ) {
+  ret.push( escape( value[i] ));
+ }
+ ret = ret.join( "&" );
+ if ( ( name + "=" + value ).length >= 4086 ) 
+  return false;
+  
+ return setCookie( name, ret, tMonth );
+}
+
+function clear() {
+ isTime = false;
+ isTimePause = false;
+ curTime = 0;
+ pauseTime = curTime;
+ 
+ todo = new Array();
+ extodo = new Array();
+ extodoend = new Array();
+ 
+ delCookie( cookieToDo );
+ delCookie( cookieExToDo );
+ delCookie( cookieExToDoEnd );
+ delCookie( cookieTimer );
+ delCookie( cookieTimerPause );
+ 
+ $("newtodo").className = "hidden";
+ return true;
+}
+
+function $(v) {return document.getElementById(v)}
+function $tag(v) {return document.getElementsByTagName(v)[0]}
+function $name(v) {return document.getElementsByName(v)}
+
+function addToDo( value, arr, cookie ) {
+ arr.push( value );
+ if ( prepareCookie( cookie, arr )) { 
+  return true;
+ } else { 
+  arr.pop();
+  alert( "Слишком много записей. \nНадо бы что-то удалить." );
+  return false;
+ }
+}
+
+function delToDo( index, arr, cookie ) {
+ arr.splice( index, 1 );
+ prepareCookie( cookie, arr );
+
+
+ if ( ! todo.length && ! extodo.length ) {
+  clear();
+ }
+ 
+ return false;
+}
+
+function toToDo( index ) {
+ if ( addToDo( extodo[index], todo, cookieToDo ) ) {
+  extodo.splice( index, 1 );
+  extodoend.splice( index, 1 );
+  
+  prepareCookie( cookieExToDo, extodo );
+  prepareCookie( cookieExToDoEnd, extodoend );
+ }
+ 
+ if ( ! isTime ) {
+  isTime = true;
+ }
+ 
+ if ( ! extodo.length ) {
+  extodo = new Array();
+  extodoend = new Array();
+  delCookie( cookieExToDo );
+  delCookie( cookieExToDoEnd );
+ }
+ 
+ refresh();
+ return false;
+}
+
+function toExToDo( index ) {
+ if ( addToDo( todo[index], extodo, cookieExToDo ) ) {
+  time = parseInt( new Date().getTime() / 1000, 10 );
+  time -= curTime;
+  
+  var min = parseInt( time / 60 % 60, 10);
+  var hour = parseInt( time / 3600, 10);
+  value = ( hour > 0 ? hour + " ч. " : "" ) + "" + min + " мин.";
+  
+  extodoend.push( value );
+  prepareCookie( cookieExToDoEnd, extodoend );
+  
+  todo.splice( index, 1 );
+  prepareCookie( cookieToDo, todo );
+  
+  if ( ! extodo.length ) {
+   todo = new Array();
+   delCookie( cookieToDo );
+  }
+ }
+ 
+ refresh();
+ return false;
+}
+
+function timerPause() {
+ if ( ! todo.length && extodo.length && ! isTimePause ) {
+  isTimePause = true;
+  pauseTime = parseInt( new Date().getTime() / 1000, 10 );
+  setCookie( cookieTimerPause, pauseTime, tMonth );
+  return true;
+ }
+ return false;
+}
+
+function timerStart() {
+ //alert(todo.length + '\n' + isTimePause);
+
+ if ( isTimePause && todo.length ) {
+  isTime = true;
+  isTimePause = false;
+  var tTime = parseInt( new Date().getTime() / 1000, 10 );
+  curTime += ( tTime - pauseTime );
+ 
+  setCookie( cookieTimer, curTime, tMonth );
+  delCookie( cookieTimerPause );
+  return true;
+ }
+ return false;
+}
+
+function timer() {
+ var min = 0;
+ var hour = 0;
+ var sec = 0;
+ 
+ if ( isTime && ! isTimePause ) {
+  time = parseInt( new Date().getTime() / 1000, 10 );
+  time -= curTime;
+  
+  min = parseInt( time / 60 % 60, 10);
+  hour = parseInt( time / 3600, 10);
+  sec = parseInt( time % 60, 10);
+ 
+  hour = hour > 0 ? hour + " " + plural( hour, "час", "часа", "часов" ) : "";
+  min = min > 0 ? min + " " + plural( min, "минута", "минуты", "минут" ) : "";
+ 
+  value = "<span>" + hour + " " + min + "</span> " + sec;
+ } else if ( isTimePause ) {
+  time = pauseTime - curTime;
+  min = parseInt( time / 60 % 60, 10);
+  hour = parseInt( time / 3600, 10);
+  sec = parseInt( time % 60, 10);
+ 
+  hour = hour > 0 ? hour + " " + plural( hour, "час", "часа", "часов" ) : "";
+  min = min > 0 ? min + " " + plural( min, "минута", "минуты", "минут" ) : "";
+ 
+  value = "<span>" + hour + " " + min + "</span> " + sec;
+ } else {
+  value = "<span></span>";
+ }
+ 
+ $("timer").innerHTML = value;
+ 
+ setTimeout( "timer()", 1000 );
+}
+
+function add() {
+ value = $("new").value;
+ if ( value.length < 1 ) {
+  return false;
+ }
+
+ if ( value == defaultMess ) {
+  return false;
+ }
+
+ value = value.replace( /</, "&lt;" );
+ value = value.replace( />/, "&gt;" );
+
+ if ( addToDo( value, todo, cookieToDo )) {
+  $("new").value = "";
+ }
+
+ if ( ! isTime ) {
+  isTime = true;
+  isTimePause = false;
+  curTime = parseInt( new Date().getTime() / 1000, 10 );
+  setCookie( cookieTimer, curTime, 1000 * 60 * 60 * 24 * 31 );
+
+  $("newtodo").className = "";
+ } 
+ 
+ return true;
+}
+
+function delTD( index ) {
+ delToDo( index, todo, cookieToDo );
+ refresh();
+ return true;
+}
+
+function delETD( index ) {
+ delToDo( index, extodo, cookieExToDo );
+extodoend.splice( index, 1 );
+prepareCookie( cookieExToDoEnd, extodoend );
+ refresh();
+ return true;
+}
+
+function refresh() {
+ timerStart();
+ timerPause();
+
+ var list = "";
+ for ( i = 0; i < todo.length; ++i ) {
+	 list += '<li><label><input type="checkbox" onclick="toExToDo(' + i + ');return false;" /> ' + todo[i].replace(/(http[s]*:[^\s]*)/, '<a href=\'$1\'>$1</a>') + ' <a href="#" class="del" title="Удалить" onclick="delTD(' + i + ');return false;">&times;</a></label></li>';
+ }
+ for ( i = 0; i < extodo.length; ++i ) {
+  list += '<li class="OK"><label><input type="checkbox" checked onclick="toToDo(' + i + ');return false;"/> ' + extodo[i] + ' <a href="#" class="del" title="Удалить" onclick="delETD(' + i + ');return false;">&times;</a> ' + extodoend[i] + '</label></li>';
+ }
+ $tag("ul").innerHTML = list;
+}
+
+function init() {
+ 
+ value = getCookie( cookieToDo );
+ if ( value ) {
+  todo = value.split( "&" );
+  for ( i = 0; i < todo.length; ++i )
+   todo[i] = unescape(todo[i]);
+ }
+ 
+ value = getCookie( cookieExToDo );
+ if ( value ) {
+  extodo = value.split( "&" );
+  for ( i = 0; i < extodo.length; ++i )
+   extodo[i] = unescape(extodo[i]);
+ }
+ 
+ value = getCookie( cookieExToDoEnd );
+ if ( value ) {
+  extodoend = value.split( "&" );
+  for ( i = 0; i < extodoend.length; ++i )
+   extodoend[i] = unescape(extodoend[i]);
+ }
+ 
+ $("new").onfocus = function() {
+  this.className = "o_off";
+  if ( this.value == defaultMess )
+   this.value = "";
+ };
+ $("new").onblur = function() {
+  this.className = "o_on";
+  if ( this.value == "" )
+   this.value = defaultMess;
+ };
+ 
+ $("newtodo").onclick = function() {
+  clear();
+  refresh();
+  return false;
+ }
+ 
+ $("addtodo").onclick = function() {
+  add();
+  refresh();
+  return false;
+ };
+ 
+ $("add").onsubmit = function() {
+  add();
+  refresh();
+  return false;
+ }
+ 
+ if ( todo.length || extodo.length ) {
+  isTime = true;
+  curTime = parseInt( getCookie( cookieTimer ) , 10);
+  pauseTime = parseInt( getCookie( cookieTimerPause ) , 10 );
+  
+  if ( pauseTime && ! todo.length ) {
+   isTimePause = true;
+  }
+  
+  $("newtodo").className = "";
+ }
+ 
+ if ( ! curTime ) {
+  curTime = parseInt( new Date().getTime() / 1000, 10 );
+ }
+ 
+ refresh();
+ timer();
+}
+
+</script>
+
+</head>
+
+<body onload='init();return false;'>
+
+<header>
+<a href='#' id='newtodo' class='hidden'>начать новый список<span>старый будет безвозвратно уничтожен</span></a> 
+<section id='timer'></section>
+
+<noscript>
+<p class='ahtung'>И шо вы думаете, это заработает без Java Script?</p>
+</noscript>
+<p class='hidden' id='nocookie'>Включите Cookies в браузере, а?</p>
+<p class='hidden' id='chrome'>Chrome не может сохранять куки для локального файла.
+Залейте на какой-нибудь сервер.</p>
+
+<form action='#' method='post' id='add'>
+<p class='add'>
+<a href='http://BrokenBrake.biz/microToDo/' title='Тудушка помогает тебе?' id='name'>µToDo</a>
+<label><input autofocus type='text' id='new' value='Что нужно делать?' maxlength='255' class="o_on" /> <a href="#" id="addtodo"><span>Enter ↵</span></a></label>
+</p>
+</form>
+</header>
+
+<ul></ul>
+
+</body>
+</html>
