@@ -1,2 +1,2 @@
-# flittr
-flittr.ru - micro todo list
+# mTODO
+http://re-coders.com/mtodo - micro todo list
